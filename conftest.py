@@ -1,33 +1,81 @@
 import pytest
 import requests
 
-from helpers.courier_generator import register_new_courier_and_return_login_password
-from urls import LOGIN_COURIER_URL, DELETE_COURIER_URL
+from helpers.courier_generator import (
+    register_new_courier_and_return_login_password,
+    delete_courier,
+)
+from helpers.order_helper import (
+    create_order,
+    get_order_id,
+    cancel_order,
+)
+from urls import LOGIN_COURIER_URL
 
 
 @pytest.fixture
 def courier():
-    login, password, first_name = register_new_courier_and_return_login_password()
+    login, password, first_name = (
+        register_new_courier_and_return_login_password()
+    )
 
     courier_data = {
         "login": login,
         "password": password,
-        "firstName": first_name
+        "firstName": first_name,
     }
 
     yield courier_data
 
+    delete_courier(courier_data)
+
+
+@pytest.fixture
+def courier_with_id(courier):
     login_response = requests.post(
         LOGIN_COURIER_URL,
         data={
-            "login": login,
-            "password": password
-        }
+            "login": courier["login"],
+            "password": courier["password"],
+        },
     )
 
-    if login_response.status_code == 200:
-        courier_id = login_response.json()["id"]
+    courier_data = courier.copy()
+    courier_data["id"] = login_response.json()["id"]
 
-        requests.delete(
-            f"{DELETE_COURIER_URL}/{courier_id}"
-        )
+    return courier_data
+
+
+@pytest.fixture
+def courier_cleanup():
+    couriers = []
+
+    yield couriers
+
+    for courier_data in couriers:
+        delete_courier(courier_data)
+
+
+@pytest.fixture
+def order():
+    track = create_order()
+    order_id = get_order_id(track)
+
+    order_data = {
+        "track": track,
+        "id": order_id,
+    }
+
+    yield order_data
+
+    cancel_order(track)
+
+
+@pytest.fixture
+def order_cleanup():
+    tracks = []
+
+    yield tracks
+
+    for track in tracks:
+        cancel_order(track)
